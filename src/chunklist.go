@@ -27,9 +27,11 @@ type ChunkList struct {
 // NewChunkList returns a new ChunkList
 func NewChunkList(trans ItemBuilder) *ChunkList {
 	return &ChunkList{
-		chunks: []*Chunk{},
-		mutex:  sync.Mutex{},
-		trans:  trans}
+		chunks:    []*Chunk{},
+		mutex:     sync.Mutex{},
+		trans:     trans,
+		tokenize:  true,
+		tokenType: "word"}
 }
 
 func (c *Chunk) push(trans ItemBuilder, data []byte) bool {
