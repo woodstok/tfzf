@@ -289,6 +289,12 @@ func Run(opts *Options, revision string) {
 					matcher.Reset(snapshot, input(), true, !reading, sort, clearCache())
 					delay = false
 
+				case EvtTokenize:
+					chunkList.ToggleTokenize(value.(string))
+					clearCache = util.Once(true)
+					snapshot, _ := chunkList.Snapshot()
+					matcher.Reset(snapshot, input(), true, !reading, sort, clearCache())
+					delay = false
 				case EvtSearchProgress:
 					switch val := value.(type) {
 					case float32:

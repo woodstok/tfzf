@@ -1,6 +1,10 @@
 package fzf
 
-import "sync"
+import (
+	"sync"
+
+	quetty "github.com/woodstok/quetty/src"
+)
 
 // Chunk is a list of Items whose size has the upper limit of chunkSize
 type Chunk struct {
@@ -13,9 +17,11 @@ type ItemBuilder func(*Item, []byte) bool
 
 // ChunkList is a list of Chunks
 type ChunkList struct {
-	chunks []*Chunk
-	mutex  sync.Mutex
-	trans  ItemBuilder
+	chunks    []*Chunk
+	mutex     sync.Mutex
+	trans     ItemBuilder
+	tokenize  bool
+	tokenType string
 }
 
 // NewChunkList returns a new ChunkList
@@ -71,8 +77,16 @@ func (cl *ChunkList) Clear() {
 	cl.mutex.Unlock()
 }
 
-// Snapshot returns immutable snapshot of the ChunkList
 func (cl *ChunkList) Snapshot() ([]*Chunk, int) {
+	if cl.tokenize {
+		return cl.tokenizedSnapshot()
+	} else {
+		return cl.normalSnapshot()
+	}
+}
+
+// Snapshot returns immutable snapshot of the ChunkList
+func (cl *ChunkList) normalSnapshot() ([]*Chunk, int) {
 	cl.mutex.Lock()
 
 	ret := make([]*Chunk, len(cl.chunks))
@@ -86,4 +100,62 @@ func (cl *ChunkList) Snapshot() ([]*Chunk, int) {
 
 	cl.mutex.Unlock()
 	return ret, CountItems(ret)
+}
+
+func (cl *ChunkList) getTokenizer() quetty.Tokenizer {
+	switch cl.tokenType {
+	case "ip":
+		return &quetty.IpTokenizer{}
+	case "path":
+		return &quetty.PathTokenizer{}
+	case "num":
+		return quetty.NewRegexTokenizer(`\d{5,}`)
+	case "hash":
+		return quetty.NewRegexTokenizer(quetty.HASHREGEX)
+	case "word":
+		return quetty.NewRegexTokenizer(`\w{5,}`)
+	default:
+		panic("unknown token type")
+	}
+}
+
+// Tokenized Snapshot returns immutable tokenized snapshot of the ChunkList
+func (cl *ChunkList) tokenizedSnapshot() ([]*Chunk, int) {
+	cl.mutex.Lock()
+
+	tokenizedChunkList := NewChunkList(cl.trans)
+	uniqTokens := quetty.NewTokens(nil)
+	for _, chunk := range cl.chunks {
+		for _, item := range chunk.items {
+			tokens, err := quetty.Tokenize(item.AsString(true), cl.getTokenizer())
+			if err != nil {
+				continue
+			}
+			uniqTokens.Extend(tokens)
+		}
+	}
+	for token, _ := range uniqTokens {
+		tokenizedChunkList.Push([]byte(token))
+	}
+
+	cl.mutex.Unlock()
+	return tokenizedChunkList.normalSnapshot()
+}
+
+func (cl *ChunkList) SetTokenize(val bool) {
+	cl.mutex.Lock()
+	cl.tokenize = val
+	cl.mutex.Unlock()
+}
+
+// if same tokentype, toggle, otherwise, set to true
+func (cl *ChunkList) ToggleTokenize(tokenType string) {
+	cl.mutex.Lock()
+	if cl.tokenType == tokenType {
+		cl.tokenize = !cl.tokenize
+	} else {
+		cl.tokenize = true
+	}
+	cl.tokenType = tokenType
+	cl.mutex.Unlock()
 }
