@@ -2,6 +2,7 @@ package fzf
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -634,6 +635,7 @@ func parseTheme(defaultTheme *tui.ColorTheme, str string) *tui.ColorTheme {
 }
 
 var executeRegexp *regexp.Regexp
+var tokenizeRegexp *regexp.Regexp
 
 func firstKey(keymap map[int]string) int {
 	for k := range keymap {
@@ -648,11 +650,22 @@ const (
 	escapedPlus  = 2
 )
 
+var logger *log.Logger
+
 func init() {
 	// Backreferences are not supported.
 	// "~!@#$%^&*;/|".each_char.map { |c| Regexp.escape(c) }.map { |c| "#{c}[^#{c}]*#{c}" }.join('|')
 	executeRegexp = regexp.MustCompile(
 		`(?si)[:+](execute(?:-multi|-silent)?|reload):.+|[:+](execute(?:-multi|-silent)?|reload)(\([^)]*\)|\[[^\]]*\]|~[^~]*~|![^!]*!|@[^@]*@|\#[^\#]*\#|\$[^\$]*\$|%[^%]*%|\^[^\^]*\^|&[^&]*&|\*[^\*]*\*|;[^;]*;|/[^/]*/|\|[^\|]*\|)`)
+	tokenizeRegexp = regexp.MustCompile(
+		`tokenize(ip|path|hash|num|word)`)
+
+	// f, err := os.OpenFile("/tmp/fzf.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	// logger = log.New(f, "", log.LstdFlags)
 }
 
 func parseKeymap(keymap map[int][]action, str string) {
@@ -815,34 +828,39 @@ func parseKeymap(keymap map[int][]action, str string) {
 			case "preview-page-down":
 				appendAction(actPreviewPageDown)
 			default:
-				t := isExecuteAction(specLower)
-				if t == actIgnore {
-					if specIndex == 0 && specLower == "" {
-						actions = append(keymap[key], actions...)
-					} else {
-						errorExit("unknown action: " + spec)
-					}
+				isTokenize, tokenizeType := isTokenizeAction(specLower)
+				if isTokenize {
+					actions = append(actions, action{t: actTokenize, a: tokenizeType})
 				} else {
-					var offset int
-					switch t {
-					case actReload:
-						offset = len("reload")
-					case actExecuteSilent:
-						offset = len("execute-silent")
-					case actExecuteMulti:
-						offset = len("execute-multi")
-					default:
-						offset = len("execute")
-					}
-					if spec[offset] == ':' {
-						if specIndex == len(specs)-1 {
-							actions = append(actions, action{t: t, a: spec[offset+1:]})
+					t := isExecuteAction(specLower)
+					if t == actIgnore {
+						if specIndex == 0 && specLower == "" {
+							actions = append(keymap[key], actions...)
 						} else {
-							prevSpec = spec + "+"
-							continue
+							errorExit("unknown action: " + spec)
 						}
 					} else {
-						actions = append(actions, action{t: t, a: spec[offset+1 : len(spec)-1]})
+						var offset int
+						switch t {
+						case actReload:
+							offset = len("reload")
+						case actExecuteSilent:
+							offset = len("execute-silent")
+						case actExecuteMulti:
+							offset = len("execute-multi")
+						default:
+							offset = len("execute")
+						}
+						if spec[offset] == ':' {
+							if specIndex == len(specs)-1 {
+								actions = append(actions, action{t: t, a: spec[offset+1:]})
+							} else {
+								prevSpec = spec + "+"
+								continue
+							}
+						} else {
+							actions = append(actions, action{t: t, a: spec[offset+1 : len(spec)-1]})
+						}
 					}
 				}
 			}
@@ -872,6 +890,14 @@ func isExecuteAction(str string) actionType {
 		return actExecuteMulti
 	}
 	return actIgnore
+}
+
+func isTokenizeAction(str string) (bool, string) {
+	matches := tokenizeRegexp.FindAllStringSubmatch(str, -1)
+	if matches == nil || len(matches) != 1 {
+		return false, ""
+	}
+	return true, matches[0][1]
 }
 
 func parseToggleSort(keymap map[int][]action, str string) {

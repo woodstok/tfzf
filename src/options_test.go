@@ -246,6 +246,7 @@ func TestBind(t *testing.T) {
 			"f1:execute(ls {+})+abort+execute(echo {+})+select-all,f2:execute/echo {}, {}, {}/,f3:execute[echo '({})'],f4:execute;less {};,"+
 			"alt-a:execute-Multi@echo (,),[,],/,:,;,%,{}@,alt-b:execute;echo (,),[,],/,:,@,%,{};,"+
 			"x:Execute(foo+bar),X:execute/bar+baz/"+
+			",ctrl-h:tokenizeIp"+
 			",f1:+top,f1:+top"+
 			",,:abort,::accept,+:execute:++\nfoobar,Y:execute(baz)+up")
 	check(tui.CtrlA, "", actKillLine)
@@ -263,6 +264,7 @@ func TestBind(t *testing.T) {
 	check(tui.AltA, "echo (,),[,],/,:,;,%,{}", actExecuteMulti)
 	check(tui.AltB, "echo (,),[,],/,:,@,%,{}", actExecute)
 	check(tui.AltZ+'+', "++\nfoobar,Y:execute(baz)+up", actExecute)
+	check(tui.CtrlH, "ip", actTokenize)
 
 	for idx, char := range []rune{'~', '!', '@', '#', '$', '%', '^', '&', '*', '|', ';', '/'} {
 		parseKeymap(keymap, fmt.Sprintf("%d:execute%cfoobar%c", idx%10, char, char))

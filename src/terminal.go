@@ -231,6 +231,7 @@ const (
 	actSigStop
 	actTop
 	actReload
+	actTokenize
 )
 
 type placeholderFlags struct {
@@ -267,7 +268,6 @@ func defaultKeymap() map[int][]action {
 	keymap[tui.CtrlD] = toActions(actDeleteCharEOF)
 	keymap[tui.CtrlE] = toActions(actEndOfLine)
 	keymap[tui.CtrlF] = toActions(actForwardChar)
-	keymap[tui.CtrlH] = toActions(actBackwardDeleteChar)
 	keymap[tui.BSpace] = toActions(actBackwardDeleteChar)
 	keymap[tui.Tab] = toActions(actToggleDown)
 	keymap[tui.BTab] = toActions(actToggleUp)
@@ -275,10 +275,7 @@ func defaultKeymap() map[int][]action {
 	keymap[tui.CtrlK] = toActions(actUp)
 	keymap[tui.CtrlL] = toActions(actClearScreen)
 	keymap[tui.CtrlM] = toActions(actAccept)
-	keymap[tui.CtrlN] = toActions(actDown)
-	keymap[tui.CtrlP] = toActions(actUp)
 	keymap[tui.CtrlU] = toActions(actUnixLineDiscard)
-	keymap[tui.CtrlW] = toActions(actUnixWordRubout)
 	keymap[tui.CtrlY] = toActions(actYank)
 	if !util.IsWindows() {
 		keymap[tui.CtrlZ] = toActions(actSigStop)
@@ -310,6 +307,14 @@ func defaultKeymap() map[int][]action {
 	keymap[tui.DoubleClick] = toActions(actAccept)
 	keymap[tui.LeftClick] = toActions(actIgnore)
 	keymap[tui.RightClick] = toActions(actToggle)
+
+	//Ctrl-i
+	keymap[tui.Tab] = []action{{t: actTokenize, a: "ip"}}
+
+	keymap[tui.CtrlH] = []action{{t: actTokenize, a: "hash"}}
+	keymap[tui.CtrlN] = []action{{t: actTokenize, a: "num"}}
+	keymap[tui.CtrlP] = []action{{t: actTokenize, a: "path"}}
+	keymap[tui.CtrlW] = []action{{t: actTokenize, a: "word"}}
 	return keymap
 }
 
@@ -1695,6 +1700,7 @@ func (t *Terminal) Loop() {
 	looping := true
 	for looping {
 		var newCommand *string
+		var tokenizer string
 		changed := false
 		queryChanged := false
 
@@ -2073,6 +2079,8 @@ func (t *Terminal) Loop() {
 						t.ansi, t.delimiter, t.printsep, false, string(t.input), list)
 					newCommand = &command
 				}
+			case actTokenize:
+				tokenizer = a.a
 			}
 			return true
 		}
@@ -2124,6 +2132,9 @@ func (t *Terminal) Loop() {
 
 		t.mutex.Unlock() // Must be unlocked before touching reqBox
 
+		if tokenizer != "" {
+			t.eventBox.Set(EvtTokenize, tokenizer)
+		}
 		if changed || newCommand != nil {
 			t.eventBox.Set(EvtSearchNew, searchRequest{sort: t.sort, command: newCommand})
 		}

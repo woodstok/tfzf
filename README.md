@@ -1,5 +1,6 @@
 <img src="https://raw.githubusercontent.com/junegunn/i/master/fzf.png" height="170" alt="fzf - a command-line fuzzy finder"> [![travis-ci](https://travis-ci.org/junegunn/fzf.svg?branch=master)](https://travis-ci.org/junegunn/fzf)
 ===
+NOTE: This is a fork of the fzf to prototype a tokenizer within the application
 
 fzf is a general-purpose command-line fuzzy finder.
 
