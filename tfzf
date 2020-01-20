@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#this script is called as <script> <window-number> <pane-number> [-aAl]
+#it quietly exits if you dont provide a window and a pane as the first two arguments
+#
+#arguments
+#---------
+#if -a is provided, all the tmux panes in current window  are parsed
+#else, only the current pane is parsed
+
+function capture_pane(){
+        pane_vals=$($tmux_path display-message -p -t $1 '#{scroll_region_lower}-#{scroll_position}')
+        scroll_height=$(echo $pane_vals | cut -f1 -d-)
+        scroll_pos=$(echo $pane_vals | cut -f2 -d-)
+
+        # scroll_pos == null implies not in copy mode
+        if [[ -n $scroll_pos ]]
+        then
+                bottom=$((scroll_height - scroll_pos))
+                $tmux_path capture-pane -J -t $1 -S -$scroll_pos  -E $bottom
+        else
+                $tmux_path capture-pane -J -t $1
+        fi
+        $tmux_path save-buffer -a $tmpfile 
+        $tmux_path delete-buffer 
+}
+
+
+tmux_path=tmux
+tmpfile=/tmp/tmux-buffer
+rm -rf $tmpfile
+
+if [[ $# -lt 2 ]]
+then
+   echo less than two arguments - $*  
+   exit 1
+fi
+
+window=$1
+shift
+pane=$1
+shift
+
+# echo "running tfzf win-$window pane-$pane" 
+
+ALL_PANES=false
+
+win_list=$window
+while test $# -gt 0
+do
+    case "$1" in
+        -a) ALL_PANES=true
+            ;;
+    esac
+    shift
+done
+
+pane_list=""
+if [ "$ALL_PANES" == true ]; then
+        #we need to consider all panes if either 
+        #allpanes or allwindows is true
+        pane_list=`$tmux_path list-panes -F '#P' -t $window`
+else
+        #otherwise, just the supplied parameter
+        pane_list=$pane
+fi
+for i in $pane_list; do
+        capture_pane $window.$i
+done
+
+# tmpfile has the pane contents from the specified panes and windows now. 
+
+resultfile="/tmp/tfzf_result"
+rm -f $resultfile
+# save the output to a variable
+output=$(cat $tmpfile | fzf_mod )
+if [ $? -eq 0 ]
+then
+        echo -n $output >> $resultfile
+fi
+
+if [ -f $resultfile ]; then
+        tmux load-buffer -b tfzf-output $resultfile
+        tmux paste-buffer -b tfzf-output -t $window.$pane
+        tmux delete-buffer -b tfzf-output
+fi
+
+#exit without complaining
+exit 0
